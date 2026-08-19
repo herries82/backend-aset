@@ -1,0 +1,42 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Jadual Pangkalan Data Aset ICT
+model AsetICT {
+  id                Int      @id @default(autoincrement())
+  
+  // -- Maklumat Sekolah --
+  sekolah           String
+  kodSekolah        String
+  
+  // -- Spesifikasi Aset --
+  kategori          String   @default("")
+  jenisTag          String
+  jenamaModel       String
+  fasa              String
+  noSiri            String
+  noKontrak         String   @default("")
+  noKewPa           String   @default("")
+  namaPembekal      String   @default("")
+  
+  // -- Maklumat Pengguna --
+  namaPegawai       String   @default("")
+  penempatan        String   @default("")
+  noTelefon         String   @default("")
+  emailPeribadi     String   @default("")
+  
+  // -- Maklumat Akses & Akaun --
+  emailM365         String   @default("")
+  kataLaluanM365    String   @default("")
+  idLogMasuk        String   @default("")
+  kataLaluanPeranti String   @default("")
+  
+  createdAt         DateTime @default(now())
+}
