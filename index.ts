@@ -16,8 +16,14 @@ const prisma = new PrismaClient({ adapter });
 
 const app = express();
 
+// Setkan had saiz body kepada 10MB supaya boleh terima gambar Base64
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// ==========================================
+// LALUAN API UNTUK ASET ICT
+// ==========================================
 
 // 1. GET: Ambil senarai aset
 app.get('/api/aset', async (req, res) => {
@@ -118,8 +124,66 @@ app.delete('/api/aset/:id', async (req, res) => {
     }
 });
 
-// Hidupkan Server
-const PORT = 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server Backend berjalan di: http://localhost:${PORT}`);
+// ==========================================
+// LALUAN API UNTUK PROFIL PENGGUNA (BARU)
+// ==========================================
+
+// 5. GET: Ambil profil dan gambar pengguna berdasarkan E-mel
+app.get('/api/users/:email', async (req, res) => {
+    try {
+        const userEmail = req.params.email;
+        const pengguna = await prisma.pengguna.findUnique({
+            where: { email: userEmail }
+        });
+
+        if (pengguna) {
+            res.json(pengguna);
+        } else {
+            res.status(404).json({ message: "Pengguna tidak dijumpai." });
+        }
+    } catch (error) {
+        console.error("❌ Ralat Ambil Profil:", error);
+        res.status(500).json({ error: "Gagal memuat turun profil." });
+    }
 });
+
+// 6. POST: Simpan atau Kemaskini Profil Pengguna (Upsert)
+app.post('/api/users', async (req, res) => {
+    try {
+        const b = req.body;
+
+        if (!b.email) {
+            return res.status(400).json({ error: "E-mel diperlukan untuk menyimpan profil." });
+        }
+
+        // Upsert akan semak: Kalau e-mel wujud, dia 'update'. Kalau tak, dia 'create' baru.
+        const penggunaDisimpan = await prisma.pengguna.upsert({
+            where: { email: b.email },
+            update: {
+                nama: String(b.nama ?? ''),
+                gambarProfil: b.gambarProfil ? String(b.gambarProfil) : null,
+            },
+            create: {
+                email: String(b.email),
+                nama: String(b.nama ?? b.email.split('@')[0]), // Default nama ikut emel jika kosong
+                gambarProfil: b.gambarProfil ? String(b.gambarProfil) : null,
+                peranan: 'admin'
+            }
+        });
+
+        console.log(`👤 Profil ${b.email} berjaya disimpan.`);
+        res.status(200).json(penggunaDisimpan);
+    } catch (error) {
+        console.error("❌ Ralat Simpan Profil:", error);
+        res.status(500).json({ error: "Gagal menyimpan profil pengguna." });
+    }
+});
+
+// Hidupkan Server secara tempatan (Local Testing)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`✅ Server Backend berjalan di port ${PORT}`);
+});
+
+// Eksport Express app untuk Vercel Serverless
+export default app;

@@ -40,3 +40,14 @@ model AsetICT {
   
   createdAt         DateTime @default(now())
 }
+
+// Jadual Pangkalan Data Pengguna (Untuk simpan profil & gambar)
+model Pengguna {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  nama         String
+  gambarProfil String?  @db.Text
+  peranan      String   @default("admin")
+  
+  createdAt    DateTime @default(now())
+}
