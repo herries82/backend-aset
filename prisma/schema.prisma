@@ -1,11 +1,13 @@
 // prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Jadual Pangkalan Data Aset ICT
@@ -50,4 +52,19 @@ model Pengguna {
   peranan      String   @default("admin")
   
   createdAt    DateTime @default(now())
+}
+
+// Jadual Pangkalan Data Galeri & Lampiran Dokumen
+model Galeri {
+  id         Int      @id @default(autoincrement())
+  tajuk      String
+  kategori   String   @default("DO")
+  noRujukan  String   @default("-")
+  sekolah    String   @default("SK SENDERUT")
+  tarikh     String   @default("-")
+  catatan    String?  @default("")
+  imejBase64 String?  @db.Text
+  userEmail  String?  @default("PENGGUNA")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

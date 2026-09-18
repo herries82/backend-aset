@@ -16,10 +16,10 @@ const prisma = new PrismaClient({ adapter });
 
 const app = express();
 
-// Setkan had saiz body kepada 10MB supaya boleh terima gambar Base64
+// Setkan had saiz body kepada 30MB supaya boleh terima gambar Base64 tanpa sebarang sekatan
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '30mb' }));
+app.use(express.urlencoded({ limit: '30mb', extended: true }));
 
 // ==========================================
 // LALUAN API UNTUK ASET ICT
@@ -125,7 +125,7 @@ app.delete('/api/aset/:id', async (req, res) => {
 });
 
 // ==========================================
-// LALUAN API UNTUK PROFIL PENGGUNA (BARU)
+// LALUAN API UNTUK PROFIL PENGGUNA
 // ==========================================
 
 // 5. GET: Ambil profil dan gambar pengguna berdasarkan E-mel
@@ -156,7 +156,6 @@ app.post('/api/users', async (req, res) => {
             return res.status(400).json({ error: "E-mel diperlukan untuk menyimpan profil." });
         }
 
-        // Upsert akan semak: Kalau e-mel wujud, dia 'update'. Kalau tak, dia 'create' baru.
         const penggunaDisimpan = await prisma.pengguna.upsert({
             where: { email: b.email },
             update: {
@@ -165,7 +164,7 @@ app.post('/api/users', async (req, res) => {
             },
             create: {
                 email: String(b.email),
-                nama: String(b.nama ?? b.email.split('@')[0]), // Default nama ikut emel jika kosong
+                nama: String(b.nama ?? b.email.split('@')[0]),
                 gambarProfil: b.gambarProfil ? String(b.gambarProfil) : null,
                 peranan: 'admin'
             }
@@ -178,6 +177,119 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: "Gagal menyimpan profil pengguna." });
     }
 });
+
+// ==========================================
+// LALUAN API UNTUK GALERI & LAMPIRAN DOKUMEN
+// ==========================================
+
+// 7. GET: Ambil semua dokumen galeri (DO, SPP, SAP, FOTO)
+app.get('/api/galeri', async (req, res) => {
+    try {
+        const senarai = await (prisma as any).galeri.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const output = senarai.map((doc: any) => ({
+            id: doc.id.toString(),
+            tajuk: doc.tajuk,
+            kategori: doc.kategori,
+            noRujukan: doc.noRujukan,
+            sekolah: doc.sekolah,
+            tarikh: doc.tarikh,
+            catatan: doc.catatan || '',
+            imejBase64: doc.imejBase64,
+            userEmail: doc.userEmail,
+        }));
+
+        res.status(200).json(output);
+    } catch (error: any) {
+        console.error("❌ Ralat Ambil Galeri:", error);
+        res.status(500).json({ error: "Gagal mengambil data galeri.", details: error.message });
+    }
+});
+
+// 8. POST: Muat naik & simpan dokumen galeri baharu
+app.post('/api/galeri', async (req, res) => {
+    try {
+        const { tajuk, kategori, noRujukan, sekolah, tarikh, catatan, imejBase64, userEmail } = req.body || {};
+
+        if (!tajuk) {
+            return res.status(400).json({ error: "Tajuk dokumen diperlukan!" });
+        }
+
+        const dokBaru = await (prisma as any).galeri.create({
+            data: {
+                tajuk: String(tajuk).toUpperCase(),
+                kategori: String(kategori || 'DO').toUpperCase(),
+                noRujukan: String(noRujukan || '-').toUpperCase(),
+                sekolah: String(sekolah || 'SK SENDERUT').toUpperCase(),
+                tarikh: String(tarikh || new Date().toLocaleDateString('ms-MY')),
+                catatan: catatan ? String(catatan) : '',
+                imejBase64: imejBase64 ? String(imejBase64) : null,
+                userEmail: userEmail ? String(userEmail) : 'PENGGUNA',
+            }
+        });
+
+        console.log(`📸 Dokumen Galeri disimpan: ${dokBaru.tajuk} [${dokBaru.kategori}]`);
+        res.status(201).json({
+            message: "Dokumen berjaya disimpan kekal!",
+            id: dokBaru.id.toString(),
+            data: dokBaru,
+        });
+    } catch (error: any) {
+        console.error("❌ Ralat Simpan Galeri:", error);
+        res.status(500).json({ error: "Gagal menyimpan dokumen galeri.", details: error.message });
+    }
+});
+
+// 9. PUT: Kemaskini dokumen galeri (Edit)
+app.put('/api/galeri/:id', async (req, res) => {
+    try {
+        const idGaleri = Number(req.params.id);
+        const { tajuk, kategori, noRujukan, sekolah, tarikh, catatan, imejBase64, userEmail } = req.body || {};
+
+        const dataUpdate: any = {};
+        if (tajuk !== undefined) dataUpdate.tajuk = String(tajuk).toUpperCase();
+        if (kategori !== undefined) dataUpdate.kategori = String(kategori).toUpperCase();
+        if (noRujukan !== undefined) dataUpdate.noRujukan = String(noRujukan).toUpperCase();
+        if (sekolah !== undefined) dataUpdate.sekolah = String(sekolah).toUpperCase();
+        if (tarikh !== undefined) dataUpdate.tarikh = String(tarikh);
+        if (catatan !== undefined) dataUpdate.catatan = String(catatan);
+        if (imejBase64 !== undefined) dataUpdate.imejBase64 = imejBase64 ? String(imejBase64) : null;
+        if (userEmail !== undefined) dataUpdate.userEmail = String(userEmail);
+
+        const hasil = await (prisma as any).galeri.update({
+            where: { id: idGaleri },
+            data: dataUpdate,
+        });
+
+        console.log(`✏️ Dokumen Galeri ID ${idGaleri} berjaya dikemaskini.`);
+        res.status(200).json({ message: "Dokumen berjaya dikemaskini.", data: hasil });
+    } catch (error: any) {
+        console.error("❌ Ralat Kemaskini Galeri:", error);
+        res.status(500).json({ error: "Gagal mengemaskini dokumen galeri.", details: error.message });
+    }
+});
+
+// 10. DELETE: Padam dokumen galeri mengikut ID
+app.delete('/api/galeri/:id', async (req, res) => {
+    try {
+        const idGaleri = Number(req.params.id);
+        await (prisma as any).galeri.delete({
+            where: { id: idGaleri },
+        });
+
+        console.log(`🗑️ Dokumen Galeri ID ${idGaleri} berjaya dipadam.`);
+        res.status(200).json({ message: "Dokumen berjaya dipadam dari pangkalan data." });
+    } catch (error: any) {
+        console.error("❌ Ralat Padam Galeri:", error);
+        res.status(500).json({ error: "Gagal memadam dokumen galeri.", details: error.message });
+    }
+});
+
+// ==========================================
+// PENGHIDUPAN SERVER
+// ==========================================
 
 // Hidupkan Server secara tempatan (Local Testing)
 const PORT = process.env.PORT || 3000;
